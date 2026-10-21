@@ -1,0 +1,79 @@
+\documentclass[10pt,letterpaper]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[compact]{titlesec}
+\titlespacing*{\section}{0pt}{6pt}{2pt}
+\setlength{\parskip}{3pt}
+
+\title{\vspace{-2em}\textbf{Assignment 1: Single-Server Key-Value Store}\\[1pt]
+       \normalsize CSCI 5144 -- Cloud Computing \quad Laeeq Ahmed}
+\author{}\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2.2em}
+
+\section*{Design Decisions}
+The server is written in Go with the standard \texttt{net/http} package,
+chosen for goroutine-based concurrency, built-in keep-alive, and a single
+static binary with no runtime dependency.
+
+\textbf{Concurrency.} A \texttt{map[string]string} is guarded by a
+\texttt{sync.RWMutex}: GETs take a read lock and run in parallel; PUT and DEL
+take the write lock, so concurrent writes to the same key are serialized.
+
+\textbf{Persistence.} The store is flushed every 10\,s and within 2\,s of any
+write (fixed-deadline debounce). Each save copies the map under a read lock,
+writes a temp file, calls \texttt{fsync}, and atomically renames it. On Ctrl+C
+(SIGINT) a final flush runs before exit; tested by \texttt{kv\_bench.py set},
+Ctrl+C, restart, \texttt{get} (\texttt{mismatch=0}).
+
+\textbf{Logging.} Operations go through a 65,536-entry buffered channel to a
+background writer (flushed every 200\,ms), keeping file I/O off the request
+path. Timestamps are taken in the request goroutine. If the channel fills,
+entries are dropped and counted (reported at shutdown); no drops were observed
+in any benchmark run.
+
+\textbf{Error handling.} Missing key: 404; malformed JSON or missing
+\texttt{value}: 400; body over 1\,MiB: 413; wrong method: 405, all with a JSON
+error body.
+
+\section*{Challenges}
+The main challenge was separating client from server bottlenecks. The official
+benchmark uses three Python threads sharing the GIL, and on my machine
+\texttt{requests} costs about 0.37\,ms of CPU per call (measured with a single
+\texttt{http.client} connection against a warm server), so throughput is
+client-bound at roughly 2,000--3,000\,ops/s regardless of server speed.
+Running the same benchmark under WSL2 gave a similar score, which supports
+the client-bound explanation rather than a Windows-specific effect.
+A Go load generator (50 goroutines, different workload, not comparable to the
+official score) reached about 130,000\,ops/s on the same server.
+A second issue was shutdown: waiting for the persistence goroutine with
+\texttt{time.Sleep} could cut off a slow \texttt{fsync}, so it was replaced
+with a done channel that \texttt{main} blocks on.
+
+\section*{Testing and Results}
+Windows\,11, Go\,1.27.0, Python\,3.14.4, laptop plugged in.
+\texttt{kv\_bench.py} reported \texttt{mismatch=0, error=0} in both phases, and
+data survived a Ctrl+C restart. Eight runs gave 2,062--2,221\,ops/s (median
+2,101, average latency about 1.4\,ms). On battery the same benchmark gave
+897--1,144\,ops/s, consistent with CPU throttling of the Python client. An
+18-case edge test suite (missing keys, bad or oversized bodies, special
+characters, non-ASCII values, wrong methods) passes on every run.
+
+\section*{Assumptions}
+Single process, no replication. A hard kill within the 2\,s debounce window can
+lose recent writes. Bodies are limited to 1\,MiB; keys and values are UTF-8
+strings. Leaderboard numbers come from the official \texttt{kv\_bench.py} with
+3 threads.
+
+\section*{Potential Improvements}
+A write-ahead log would remove the loss window without a full snapshot per
+write; sharding the map with per-shard locks would reduce write contention;
+TTLs would support cache workloads; and Raft-based replication would add fault
+tolerance.
+
+\end{document}

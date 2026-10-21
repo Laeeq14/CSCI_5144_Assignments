@@ -1,0 +1,17 @@
+# binaries
+kvserver.exe
+kvserver.exe~
+kvserver_linux
+kvserver
+
+# runtime data
+kv_store_data.json
+kv_store_data.json.tmp
+kv_store.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Go build cache
+*.test
