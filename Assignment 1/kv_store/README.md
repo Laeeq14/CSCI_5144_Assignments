@@ -2,6 +2,19 @@
 
 A single-server key-value store written in Go. Supports GET, PUT (POST), and DELETE over HTTP.
 
+## Install Go
+
+Windows:
+```bash
+winget install GoLang.Go
+```
+Restart Powershell Window
+
+MacOS:
+```bash
+brew install go
+```
+
 ## Build and run
 
 ```bash
@@ -42,6 +55,13 @@ Error responses use `{"error":"..."}` with an appropriate status code (400, 404,
 | `edge_cases.py` | Correctness tests (18 cases, state-independent) |
 | `durability_test.py` | Automated durability tests (graceful shutdown, force-kill scenarios) |
 | `loadgen/` | Go load generator for measuring raw server throughput |
+
+## Run Benchmark (after building and running Go server)
+
+```
+python kv_bench.py
+python edge_cases.py
+```
 
 ## Benchmark results
 
