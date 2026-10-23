@@ -10,7 +10,18 @@
 
 \title{\vspace{-2em}\textbf{Assignment 1: Single-Server Key-Value Store}\\[1pt]
 \normalsize CSCI 5144 -- Cloud Computing}
-\author{Laeeq Ahmed [fazil017@umn.edu] \quad Adam Meziou [mezio004@umn.edu] \quad Dang Nguyen [nguy6082@umn.edu] \quad Yassir Abdalla [abdal167@umn.edu] \quad Younus Ali [ali00380@umn.edu]}
+\author{
+  \begin{tabular}{c c c}
+    Laeeq Ahmed & Adam Meziou & Dang Nguyen \\
+    \texttt{fazil017@umn.edu} & \texttt{mezio004@umn.edu} & \texttt{nguy6082@umn.edu} \\[6pt]
+    \multicolumn{3}{c}{
+      \begin{tabular}{c c}
+        Yassir Abdalla & Younus Ali \\
+        \texttt{abdal167@umn.edu} & \texttt{ali00380@umn.edu}
+      \end{tabular}
+    }
+  \end{tabular}
+}
 \date{}
 
 \begin{document}
@@ -19,12 +30,14 @@
 
 \section*{Design Decisions}
 The server is written in Go with the standard \texttt{net/http} package,
-chosen for goroutine-based concurrency, built-in keep-alive, and a single
+chosen for goroutine-based concurrency, built-in HTTP keep-alive, and a single
 static binary with no runtime dependency.
 
 \textbf{Concurrency.} A \texttt{map[string]string} is guarded by a
 \texttt{sync.RWMutex}: GETs take a read lock and run in parallel; PUT and DEL
 take the write lock, so concurrent writes to the same key are serialized.
+PUT is exposed as \texttt{POST /<key>} with a JSON body, matching the
+provided benchmark.
 
 \textbf{Persistence.} The store is flushed every 10\,s and within 2\,s of any
 write (fixed-deadline debounce). Each save copies the map under a read lock,
@@ -39,19 +52,20 @@ entries are dropped and counted (reported at shutdown); no drops were observed
 in any benchmark run.
 
 \textbf{Error handling.} Missing key: 404; malformed JSON or missing
-\texttt{value}: 400; body over 1\,MiB: 413; wrong method: 405, all with a JSON
-error body.
+\texttt{value}: 400; body over 1\,MiB: 413 (all with a JSON error body);
+unsupported method: 405 (plain-text body).
 
 \section*{Challenges}
-The main challenge was separating client from server bottlenecks. The official
-benchmark uses three Python threads sharing the GIL, and on my machine
+The main challenge was separating client from server bottlenecks. The provided
+benchmark uses three Python threads sharing the GIL, and on our machine
 \texttt{requests} costs about 0.37\,ms of CPU per call (measured with a single
 \texttt{http.client} connection against a warm server), so throughput is
 client-bound at roughly 2,000--3,000\,ops/s regardless of server speed.
 Running the same benchmark under WSL2 gave a similar score, which supports
 the client-bound explanation rather than a Windows-specific effect.
-A Go load generator (50 goroutines, different workload, not comparable to the
-official score) reached about 130,000\,ops/s on the same server.
+A Go load generator reached about 169k\,ops/s at 100 goroutines
+(non-verifying Go load generator on the same host, peak of the sweep); see
+README.
 A second issue was shutdown: waiting for the persistence goroutine with
 \texttt{time.Sleep} could cut off a slow \texttt{fsync}, so it was replaced
 with a done channel that \texttt{main} blocks on.
@@ -68,8 +82,8 @@ characters, non-ASCII values, wrong methods) passes on every run.
 \section*{Assumptions}
 Single process, no replication. A hard kill within the 2\,s debounce window can
 lose recent writes. Bodies are limited to 1\,MiB; keys and values are UTF-8
-strings. Leaderboard numbers come from the official \texttt{kv\_bench.py} with
-3 threads.
+strings. Benchmark results use the \texttt{kv\_bench.py} script provided by the
+instructor with its default configuration (3 threads, 300 keys).
 
 \section*{Potential Improvements}
 A write-ahead log would remove the loss window without a full snapshot per
