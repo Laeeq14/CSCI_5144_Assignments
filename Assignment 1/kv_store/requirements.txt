@@ -1,3 +1,2 @@
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
-pydantic>=2.0.0
+requests>=2.31.0      # kv_bench.py, durability_test.py
+matplotlib>=3.7.0     # plot_throughput.py

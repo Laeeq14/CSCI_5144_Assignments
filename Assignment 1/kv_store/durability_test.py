@@ -3,7 +3,7 @@ durability_test.py — Tests all three persistence scenarios for the KV store.
 
 Scenario A: Graceful shutdown (CTRL+C / SIGINT) — must survive regardless of timing.
 Scenario B: Force-kill after 3s  — must survive (debounce flush had 2s to run).
-Scenario C: Force-kill after 0.5s — EXPECTED TO LOSE DATA (loss window documented).
+Scenario C: Force-kill after 0.1s — within loss window (loss may or may not occur depending on ticker).
 
 Run from the kv_store/ directory:
   python durability_test.py
@@ -25,10 +25,23 @@ PORT = 8080
 RUN_ID = str(int(time.time()))
 
 
-def wait_ready(timeout=5.0):
+def is_port_in_use():
+    try:
+        conn = http.client.HTTPConnection(BASE_URL, PORT, timeout=0.5)
+        conn.request("GET", "/")
+        conn.getresponse().read()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def wait_ready(proc, timeout=5.0):
     """Wait for server to start accepting connections."""
     deadline = time.time() + timeout
     while time.time() < deadline:
+        if proc.poll() is not None:
+            return False
         try:
             conn = http.client.HTTPConnection(BASE_URL, PORT, timeout=0.5)
             conn.request("GET", "/")
@@ -36,7 +49,7 @@ def wait_ready(timeout=5.0):
             conn.close()
             return True
         except Exception:
-            time.sleep(0.1)
+            time.sleep(0.05)
     return False
 
 
@@ -85,9 +98,10 @@ def start_server():
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    if not wait_ready():
-        proc.kill()
-        sys.exit("Server did not start within 5s")
+    if not wait_ready(proc):
+        if proc.poll() is None:
+            proc.kill()
+        sys.exit("Server did not start within 5s (port 8080 may already be in use)")
     return proc
 
 
@@ -150,12 +164,22 @@ def run_scenario(name, kill_fn, delay_s, expect_survive):
     else:
         # For the "expected to lose" scenario, just document what happened
         result = "DOCUMENTED"
-        print(f"  Result: [{result}] found={found}/{total}, lost={lost} — loss window confirmed")
+        if lost > 0:
+            print(f"  Result: [{result}] found={found}/{total}, lost={lost} — loss window confirmed")
+        else:
+            print(f"  Result: [{result}] found={found}/{total}, lost={lost} — no loss observed in this run")
 
     return result
 
 
 if __name__ == "__main__":
+    if is_port_in_use():
+        sys.exit(
+            "ERROR: A server is already running on port 8080.\n"
+            "durability_test manages its own server instances.\n"
+            "Please stop any running kvserver (e.g. Ctrl+C in its terminal) before running durability_test.py."
+        )
+
     print("KV Store Durability Test Suite")
     print(f"Server: {SERVER_BIN}")
     print(f"Run ID: {RUN_ID}")
@@ -180,14 +204,14 @@ if __name__ == "__main__":
     )
     results.append(("B: Force-kill after 3s (debounce flushed)", r))
 
-    # Scenario C: force-kill after 0.5s — within the loss window, data may be lost
+    # Scenario C: force-kill after 0.1s — within the loss window, data may be lost
     r = run_scenario(
-        name="C force_kill_0.5s",
+        name="C force_kill_0.1s",
         kill_fn=force_kill,
-        delay_s=0.5,
+        delay_s=0.1,
         expect_survive=False,  # not expected to survive — documents the loss window
     )
-    results.append(("C: Force-kill after 0.5s (loss window)", r))
+    results.append(("C: Force-kill after 0.1s (loss window)", r))
 
     print(f"\n{'='*60}")
     print("Summary")
@@ -195,5 +219,5 @@ if __name__ == "__main__":
     for label, result in results:
         print(f"  {label}: [{result}]")
     print()
-    print("Note: Scenario C shows the documented loss window.")
-    print("The professor's test (Ctrl+C) matches Scenario A, which always survives.")
+    print("Note: Scenario C tests the debounce loss window (force-kill before 2s flush).")
+    print("The professor's test (Ctrl+C) matches Scenario A (graceful shutdown with flush).")
