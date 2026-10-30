@@ -1,0 +1,26 @@
+# Exclude files from the Docker build context
+
+# Compiled binaries (built inside Docker instead)
+kv_store/kvserver
+kv_store/kvserver.exe
+kv_store/kvserver.exe~
+
+# Runtime-generated data files
+kv_store/kv_store_data.json
+kv_store/kv_store.log
+kv_store/sweep_results.txt
+kv_store/throughput_vs_concurrency.png
+
+# Python cache files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Go test output
+*.test
+*.out
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp

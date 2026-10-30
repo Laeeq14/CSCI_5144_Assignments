@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  kvstore:
+    # Build from the Dockerfile in this directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: csci5144-kvstore:latest
+
+    container_name: kvstore
+
+    # Map host port 8080 to container port 8080
+    ports:
+      - "8080:8080"
+
+    environment:
+      # Bind address inside the container
+      LISTEN_ADDR: "0.0.0.0:8080"
+      # Directory where the server writes data and log files
+      PERSIST_DIR: /data
+
+    volumes:
+      # Named volume persists data across container restarts
+      # Remove with: docker compose down -v
+      - kv_data:/data
+
+    # Give the server 15 s to flush to disk on SIGTERM before SIGKILL
+    stop_grace_period: 15s
+
+    restart: unless-stopped
+
+    # Poll the health endpoint every 10 s
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  kv_data:
+    driver: local

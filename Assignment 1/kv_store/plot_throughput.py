@@ -1,22 +1,3 @@
-"""
-Parse multi-run loadgen sweep output and plot throughput vs. concurrent goroutines.
-
-Run the sweep as (PowerShell, from kv_store/):
-    & {
-        foreach ($g in @(1,2,4,8,16,32,50,100,200)) {
-            foreach ($run in @(1,2,3)) {
-                Write-Output "=== goroutines=$g run=$run ==="
-                go run ./loadgen -goroutines $g -ops 5000 -phase both
-            }
-        }
-    } | Tee-Object sweep_results.txt
-
-Usage:
-    py plot_throughput.py sweep_results.txt
-    # or pipe: <command> | py plot_throughput.py -
-
-Dependencies: pip install matplotlib
-"""
 import re
 import sys
 import statistics
@@ -35,7 +16,6 @@ def parse(text):
         m = re.search(r'goroutines=(\d+)', line)
         if m:
             current_g = int(m.group(1))
-        # Unicode arrow U+2192 or ASCII ->
         m = re.search(r'SERVER CAPACITY:.*?[\u2192>]\s*([\d,]+(?:\.\d+)?)\s*ops/s', line)
         if m and current_g is not None:
             results[current_g].append(float(m.group(1).replace(',', '')))
