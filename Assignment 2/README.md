@@ -1,6 +1,6 @@
-# Assignment 2 — Dockerized Key-Value Store
+# Assignment 2 - Dockerized Key-Value Store
 
-**CSCI 5144 — Cloud Computing**
+**CSCI 5144 - Cloud Computing**
 
 This assignment wraps the Go key-value store from Assignment 1 in a Docker
 container using a multi-stage build so the final image is small (~30 MB) and
@@ -30,7 +30,7 @@ Assignment 2/
 
 ## Quick start
 
-### Option A — Docker Compose (recommended)
+### Option A - Docker Compose (recommended)
 
 ```bash
 # Build the image and start the container in the foreground
@@ -46,7 +46,7 @@ docker compose down
 docker compose down -v
 ```
 
-### Option B — Plain `docker` commands
+### Option B - Plain `docker` commands
 
 ```bash
 # 1. Build the image
@@ -133,7 +133,7 @@ curl.exe -X DELETE http://localhost:8080/hello
 # Open a shell in the running container
 docker exec -it kvstore /bin/sh
 
-# Inside the container — run the benchmark against the local server
+# Inside the container, run the benchmark against the local server
 cd /app
 python kv_bench.py
 python edge_cases.py
