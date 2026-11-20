@@ -1,0 +1,102 @@
+# docker-compose.yml — Assignment 3: 3-node consistent-hashing KV cluster
+#
+# Architecture:
+#   proxy (port 8000) → kv1 (8081) + kv2 (8082) + kv3 (8083)
+#
+# To run the full 3-node cluster:
+#   docker compose up --build
+#
+# To run with only 1 node (for benchmarking):
+#   docker compose up --build proxy kv1
+#   # and set BACKENDS=kv1:8080 in the proxy environment below
+#
+# See benchmark/bench.py for automated 1→2→3 node sweep.
+
+services:
+
+  # ── KV Store nodes ──────────────────────────────────────────────────────────
+  kv1:
+    build:
+      context: .
+      dockerfile: Dockerfile.kvstore
+    container_name: kv1
+    environment:
+      LISTEN_ADDR: "0.0.0.0:8080"
+      PERSIST_DIR: "/data"
+    volumes:
+      - kv1_data:/data
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  kv2:
+    build:
+      context: .
+      dockerfile: Dockerfile.kvstore
+    container_name: kv2
+    environment:
+      LISTEN_ADDR: "0.0.0.0:8080"
+      PERSIST_DIR: "/data"
+    volumes:
+      - kv2_data:/data
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  kv3:
+    build:
+      context: .
+      dockerfile: Dockerfile.kvstore
+    container_name: kv3
+    environment:
+      LISTEN_ADDR: "0.0.0.0:8080"
+      PERSIST_DIR: "/data"
+    volumes:
+      - kv3_data:/data
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Consistent-hashing proxy ─────────────────────────────────────────────────
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    container_name: proxy
+    environment:
+      LISTEN_ADDR: "0.0.0.0:8000"
+      # List active backends here. For 1-node: "kv1:8080"
+      # For 2-node: "kv1:8080,kv2:8080"
+      # For 3-node: "kv1:8080,kv2:8080,kv3:8080"
+      BACKENDS: "kv1:8080,kv2:8080,kv3:8080"
+    ports:
+      - "8000:8000"
+    depends_on:
+      kv1:
+        condition: service_healthy
+      kv2:
+        condition: service_healthy
+      kv3:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  kv1_data:
+  kv2_data:
+  kv3_data:
+

@@ -1,0 +1,26 @@
+# Dockerfile.kvstore — builds the KV store node image (identical to Assignment 2)
+FROM golang:1.27-alpine AS builder
+
+WORKDIR /build
+COPY kv_store/go.mod ./
+RUN go mod download
+COPY kv_store/main.go ./
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o kvserver .
+
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S kvgroup && \
+    adduser  -S kvuser -G kvgroup
+
+WORKDIR /app
+COPY --from=builder /build/kvserver ./kvserver
+
+RUN mkdir -p /data && chown kvuser:kvgroup /data
+USER kvuser
+
+ENV PERSIST_DIR=/data
+ENV LISTEN_ADDR=0.0.0.0:8080
+EXPOSE 8080
+
+ENTRYPOINT ["/bin/sh", "-c", "cd ${PERSIST_DIR} && exec /app/kvserver"]
+
